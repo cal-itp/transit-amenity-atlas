@@ -36,11 +36,15 @@ agency_names = {
     'VVTA_Bus_Stop_Amenities.xlsx': 'VVTA',
     'SFMTA_Bus_Stop_Amenities_Updated_Feb_2024.xlsx': 'SFMTA',
     'Santa_Clara_Valley_Transportation_Authority_Bus_Stop_Amenities_Updated_2020.xlsx': 'Santa Clara VTA',
-    'Santa_Monica_BBB_Bus_Stop_Amenities.xlsx': 'Santa Monica Big Blue Bus',
+    # 'Santa_Monica_BBB_Bus_Stop_Amenities.xlsx': 'Santa Monica Big Blue Bus', #skip this duplicate file for now
     'SBMTD_Bus_Stop_Amenities_Dataset_Cleaned_1-21-2025.xlsx': 'Santa Barbara MTD',
     'San_Diego_MTS_Bus_Stop_Amenities_Updated_Jun_2024.xlsx': 'San Diego MTS',
     'City_of_Needles_Bus_Stop_Amenities.xlsx': 'City of Needles',
-    'BBB_Stop_Amenity_Data.xlsx': 'Santa Monica BBB'
+    'BBB_Stop_Amenity_Data.xlsx': 'Santa Monica BBB',
+    'Omnitrans_Bus_Stop_Amenities.xlsx': 'Omnitrans',
+    'OCTA_Bus_Stop_Amenities.xlsx': 'OCTA',
+    'Riverside_Transit_Agency_Bus_Stop_Amenities_Updated_Jun_2024.xlsx': 'Riverside Transit Agency',
+    'SacRT_Bus_Stop_Amenities_Updated_Dec_2022.xlsx': 'SacRT'
 }
 
 # Loop through each file and read it into a pandas dataframe
@@ -50,20 +54,31 @@ for file in files:
         file_path = os.path.join(source_folder, file)
         try:
             df = pd.read_excel(file_path)
-            # Select only the specified fields if they exist in the dataframe
-            df = df[[field for field in fields if field in df.columns]]
+            skipped_fields = []
             if file in agency_names:
-                df['agency'] = agency_names[file]
-            else:
-                logging.info(f'New {file} with shape {df.shape}')
+                # Select only the specified fields if they exist in the dataframe
+                existing_fields = df.columns.intersection(fields)
+                skipped_fields = list(set(df.columns.to_list()) - set(existing_fields.to_list()))
 
-            dataframes[file] = df
-            logging.info(f'Successfully ingested {file} with shape {df.shape}')
+                df = df[existing_fields]
+                df['agency'] = agency_names[file]
+                dataframes[file] = df
+                logging.info(f'Successfully ingested {file} with shape {df.shape}, existing fields: {existing_fields.to_list()}')
+
+                if skipped_fields:
+                    logging.info(f"Skipped fields in {file}: {skipped_fields}")
+            else:
+                logging.info(f'New {file} with shape {df.shape} - skipped')
+
         except Exception as e:
             logging.error(f'Error ingesting {file}: {e}')
 
 combined_df = pd.concat(dataframes, ignore_index=True)
 combined_df['stop_id'] = combined_df['stop_id'].astype(str) #handle mixed types in stop_id
+combined_df['name'] = combined_df['name'].astype(str) #Kills NaN values, timestamps in name column
+
+# duplicates = combined_df[combined_df.duplicated(subset=['stop_lat', 'stop_lon', 'agency'], keep=False)]
+combined_df = combined_df.drop_duplicates(subset=['stop_lat', 'stop_lon', 'agency'])
 
 def yes_and_no_converter(x):
     if pd.isna(x) or x in [None]:
