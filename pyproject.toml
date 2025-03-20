@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "bus-stop-processor"
+version = "0.1.0"
+description = "Processes bus stop amenity data."
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "3.11.11"
+pandas = "^2.2.0"
+openpyxl = "^3.1.2"
+geopandas = "^0.14.3"
+shapely = "^2.0.2"
+
+# [tool.poetry.packages]
+# include = ["clean_and_output_db.py"]
+
+# [build-system]
+# requires = ["poetry-core>=1.0.0"]
+# build-backend = "poetry.core.masonry.api"
