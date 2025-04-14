@@ -16,11 +16,12 @@ This schema defines the structure for representing transit bus stop information.
 * `shelter`: (enum, Optional) 'yes' if the stop is protected from the rain by a shelter. 'no' if it is not.
 * `bench`: (enum, Optional) 'yes' if a bench for riders to sit on is present at the stop. 'no' if not.
 * `lit`: (enum, Optional) 'yes' if the bus stop is lit up at night. 'no' if not.
-* `rt_signage`: (enum, Optional) 'yes' if their is real-time signage. 'no' if not.
+* `departures_board`: (enum, Optional) 'realtime' if their is real-time signage. 'timetable' if there is a paper time sheet. 'no' if there is nothing there.
 * `bin`: (enum, Optional) 'yes' if there is a trash can at the bus stop. 'no' if not.
+* `has_power`: (enum, Optional) 'yes' if their is access to some physical power source nearby, 'no' if not.
 
 * `parent_station`: (String, Optional) `stop_id` of parent station.
-* `wheelchair_boarding`: (Integer, Optional) Wheelchair accessibility:
+* `wheelchair_boarding`: (enum, Optional) Wheelchair accessibility:
     * `0`: Unknown
     * `1`: Accessible
     * `2`: Not Accessible
@@ -33,3 +34,4 @@ This schema defines the structure for representing transit bus stop information.
 
 * [GTFS stops.txt](https://gtfs.org/documentation/schedule/reference/#stopstxt)
 * [OpenStreetMap Buses](https://wiki.openstreetmap.org/wiki/Buses#Bus_stops)
+* [California taginfo](https://taginfo.geofabrik.de/north-america:us:california/tags/highway=bus_stop#combinations)
