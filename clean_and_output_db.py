@@ -9,6 +9,7 @@
 import logging
 import os
 
+import geohash2
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point
@@ -125,6 +126,23 @@ valid_geo_df = combined_df[
 logging.info(f"Shape of valid_geo_df after scrubbing: {valid_geo_df.shape}")
 geometry = [Point(xy) for xy in zip(valid_geo_df['stop_lon'], valid_geo_df['stop_lat'])]
 gdf = gpd.GeoDataFrame(valid_geo_df, geometry=geometry)
+
+precision_choice = 9
+gdf['geohash'] = gdf.apply(lambda row: geohash2.encode(row['stop_lat'], row['stop_lon'], precision=precision_choice), axis=1)
+logging.info(f"Geohashes successfully generated and added to the GeoDataFrame.  Currently using precision of {precision_choice}.")
+
+# Count occurrences of each geohash
+geohash_counts = gdf['geohash'].value_counts()
+
+# Filter geohashes with counts greater than 1
+geohashes_with_multiple_stops = geohash_counts[geohash_counts > 2]
+
+# Display the result
+logging.info(f"{geohashes_with_multiple_stops}")
+for gh in geohashes_with_multiple_stops.index:
+    logging.info(f"Geohash: {gh}")
+    filtered_rows = gdf[gdf['geohash'] == gh]
+    logging.info(filtered_rows[['agency', 'stop_id', 'name', 'stop_lat', 'stop_lon']])
 
 logging.info(f"Outputting geojson: stops_with_points.geojson")
 gdf.to_file("stops_with_points.geojson", driver='GeoJSON')
