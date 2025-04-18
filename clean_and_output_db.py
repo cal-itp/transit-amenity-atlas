@@ -134,8 +134,8 @@ logging.info(f"Geohashes successfully generated and added to the GeoDataFrame.  
 # Count occurrences of each geohash
 geohash_counts = gdf['geohash'].value_counts()
 
-# Filter geohashes with counts greater than 1
-geohashes_with_multiple_stops = geohash_counts[geohash_counts > 2]
+# Filter geohashes with counts greater than or equal to 2
+geohashes_with_multiple_stops = geohash_counts[geohash_counts >= 2]
 
 # Display the result
 logging.info(f"{geohashes_with_multiple_stops}")
