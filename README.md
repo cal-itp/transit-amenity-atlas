@@ -7,4 +7,5 @@ A research project on organizing Transit Stop Amenity Data
 
 
 Rough pipeline drawing
-![image](https://github.com/user-attachments/assets/3b546d4e-0d15-4ba7-8c68-89c7254255e6)
+![image](https://github.com/user-attachments/assets/85f49cab-2d35-45ca-a0a1-f1f0c77f9f32)
+
