@@ -2,7 +2,6 @@
 name: User story / feature request
 about: Submit a user story or feature request
 title: ''
-labels: ''
 assignees: ''
 projects: 
   - cal-itp/24
