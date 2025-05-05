@@ -4,6 +4,9 @@ about: Submit a user story or feature request
 title: ''
 labels: ''
 assignees: ''
+projects: 
+  - cal-itp/24
+labels: ["Intake"]
 ---
 
 ## User story / feature request
