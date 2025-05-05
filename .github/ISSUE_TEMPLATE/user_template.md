@@ -3,7 +3,7 @@ name: User story / feature request
 about: Submit a user story or feature request
 title: ''
 assignees: ''
-projects: ["cal-itp/31"]
+projects: ["cal-itp/28"]
 ---
 
 ## User story / feature request
