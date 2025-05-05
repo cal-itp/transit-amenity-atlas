@@ -3,9 +3,8 @@ name: User story / feature request
 about: Submit a user story or feature request
 title: ''
 assignees: ''
-projects: ["https://github.com/orgs/cal-itp/projects/31"]
-status: Intake
----
+projects: ["cal-itp/31"]
+--
 
 ## User story / feature request
 
