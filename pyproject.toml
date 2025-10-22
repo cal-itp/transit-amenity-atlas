@@ -2,24 +2,27 @@
 name = "bus-stop-processor"
 version = "0.1.0"
 description = "Processes bus stop amenity data."
-authors = ["Your Name <your.email@example.com>"]
 readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
 python = "3.11.11"
-pandas = "^2.2.0"
+pandas = "*"
 openpyxl = "^3.1.2"
 geopandas = "^0.14.3"
 shapely = "^2.0.2"
 geohash2 = "^1.1.0"
-
-# [tool.poetry.packages]
-# include = ["clean_and_output_db.py"]
-
-# [build-system]
-# requires = ["poetry-core>=1.0.0"]
-# build-backend = "poetry.core.masonry.api"
+Jinja2 = "^3.1.2"
+sqlalchemy = "^2.0.44"
+geoalchemy2 = "^0.18.0"
+psycopg2-binary = "^2.9.11"
+duckdb = "^1.4.1"
+haversine = "^2.9.0"
+calitp-data-analysis = "^2025.9.23"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
