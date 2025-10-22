@@ -1,0 +1,80 @@
+"""
+Create geohashes from transit stops and aggregate counts of stops per geohash.
+
+Saves:
+- full_latest_stops.csv: CSV of all stops with geohashes and counts
+- stops_w_geohashes.gpkg: GeoPackage of stops with geohashes
+"""
+
+import duckdb
+import geopandas as gpd
+from google.cloud import bigquery
+import pandas as pd
+from urllib.parse import urlencode
+
+client = bigquery.Client(project="cal-itp-data-infra")
+
+def streetview_web_link(lat, lon, heading=0, pitch=0, fov=90):
+    """
+    Clickable Google Maps Street View (opens Maps with panorama).
+    """
+    params = {
+        "api": "1",
+        "map_action": "pano",
+        "viewpoint": f"{lat},{lon}",
+        "heading": str(heading),
+        "pitch": str(pitch),
+        "fov": str(fov),
+    }
+    return "https://www.google.com/maps/@?" + urlencode(params)
+
+sql = """
+SELECT
+  ds.KEY,
+  ds._gtfs_key,
+  ds.feed_key,
+  da.agency_id,
+  da.agency_name,
+  ds.stop_id,
+  ds.tts_stop_name,
+  stop_lat,
+  stop_lon,
+  zone_id,
+  stop_code,
+  stop_name,
+  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 8) AS geohash_8
+FROM
+  `mart_gtfs_schedule_latest.dim_stops_latest` ds
+  left join mart_gtfs.dim_agency da
+  on ds.feed_key = da.feed_key
+  where agency_id not in ('GREYHOUND-us', 'FLIXBUS-us')
+  and
+  agency_name not in ('Oregon POINT', 'Curry Public Transit');
+"""
+# Leave out nationwide stops agencies
+df = client.query(sql).to_dataframe()  
+
+df['streetview_link'] = df.apply(lambda r: streetview_web_link(r['stop_lat'], r['stop_lon']), axis=1)
+
+con = duckdb.connect() 
+con.register("stops_df", df)
+sql = """
+SELECT
+  geohash_8,
+  COUNT(*) AS n_stops_in_geohash,
+FROM stops_df
+GROUP BY geohash_8
+order by n_stops_in_geohash DESC
+"""
+agg_df = con.execute(sql).fetchdf()
+
+# merge counts back onto df
+df = df.merge(agg_df, on="geohash_8", how="left")
+
+# save full stops with geohashes and counts
+df.to_csv("full_latest_stops.csv", index=False)
+
+# build GeoDataFrame (WGS84)
+gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df['stop_lon'], df['stop_lat']), crs="EPSG:4326")
+gdf.to_file("stops_w_geohashes.gpkg", layer="stops", driver="GPKG")
+# alternatives:
