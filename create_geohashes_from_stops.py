@@ -1,5 +1,5 @@
 """
-Create geohashes from transit stops and aggregate counts of stops per geohash.
+Create geohashes from all the latest transit stops and aggregate counts of stops per geohash.
 
 Saves:
 - full_latest_stops.csv: CSV of all stops with geohashes and counts
@@ -49,7 +49,8 @@ FROM
   on ds.feed_key = da.feed_key
   where agency_id not in ('GREYHOUND-us', 'FLIXBUS-us')
   and
-  agency_name not in ('Oregon POINT', 'Curry Public Transit');
+  agency_name not in ('Oregon POINT', 'Curry Public Transit')
+  and stop_lat != 0.0;
 """
 # Leave out nationwide stops agencies
 df = client.query(sql).to_dataframe()  
@@ -76,5 +77,13 @@ df.to_csv("full_latest_stops.csv", index=False)
 
 # build GeoDataFrame (WGS84)
 gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df['stop_lon'], df['stop_lat']), crs="EPSG:4326")
-gdf.to_file("stops_w_geohashes.gpkg", layer="stops", driver="GPKG")
+
+#https://gis.data.ca.gov/datasets/CDEGIS::california-state-boundary/explore
+path = "California_State_Boundary.geojson"
+ca_gdf = gpd.read_file(path)
+gdf = gpd.clip(gdf, ca_gdf) # clip to CA boundary
+
+gdf.to_file("maps/stops_w_geohashes.gpkg", layer="stops", driver="GPKG")
 # alternatives:
+gdf.to_file("maps/stops_w_geohashes.geojson", driver="GeoJSON")
+# gdf.to_file("maps/stops_w_geohashes.shp")  # shapefile has name/field limits
