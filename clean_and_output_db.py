@@ -146,6 +146,7 @@ for gh in geohashes_with_multiple_stops.index:
 
 logging.info(f"Outputting geojson: amenity_stops.geojson")
 gdf.to_file("maps/amenity_stops.geojson", driver='GeoJSON')
+gdf.to_file("maps/amenity_stops.gpkg", layer="stops", driver="GPKG")
 
 out_csv = "maps/amenity_stops.csv"
 # drop geometry and write full attributes

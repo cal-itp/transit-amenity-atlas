@@ -4,8 +4,7 @@ Please refer to https://dbt-docs.dds.dot.ca.gov/#!/model/model.calitp_warehouse.
 
 Here is a deeper explanation of geohashes: https://www.movable-type.co.uk/scripts/geohash.html
 
-We are intentionally using teh Base32 algorithm whcih shows up in python (geohash2) and in bigquery for maximum compatibility.
-
+We are intentionally using the Base32 algorithm whcih shows up in python (geohash2) and in bigquery for maximum compatibility.
 
 CRS: EPSG:4326 (WGS84)
 Geometry column: geometry (Point). CSV includes lon/lat columns.
@@ -54,3 +53,11 @@ Geometry column: geometry (Point). CSV includes lon/lat columns.
   MIN(t1.stop_name) AS gh_stop_name,
   STRING_AGG(DISTINCT t1.stop_name, ', ' order by t1.stop_name) AS unique_stop_names_list,
   COUNT(t1.stop_name) AS stop_count
+
+## Files
+- `amenity_stops.csv`
+- `amenity_stops.gpkg`
+
+## Fields
+
+Please refer to the [Initial schema for Stop Amenities](schema.md).
