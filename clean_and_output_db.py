@@ -29,7 +29,7 @@ dataframes = {}
 # Define the fields to pull out
 fields = [
     "operator", "stop_id", "stop_code", "name", "stop_lat", "stop_lon",
-    "shelter", "bench", "lit", "rt_signage", "bin", "parent_station", "wheelchair_boarding"
+    "shelter", "bench", "lit", "departures_board", "bin", "parent_station", "wheelchair_boarding", "has_power"
 ]
 
 agency_names = {
