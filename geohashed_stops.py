@@ -15,20 +15,15 @@ SELECT
   ds.feed_key,
   ds.base64_url,
   gd.analysis_name,
-  -- da.agency_id,
-  -- da.agency_name,
   ds.stop_id,
   ds.tts_stop_name,
   stop_lat,
   stop_lon,
-  zone_id,
   stop_code,
   stop_name,
   ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 7) AS geohash_7
 FROM
   `mart_gtfs_schedule_latest.dim_stops_latest` ds
-  -- left join mart_gtfs.dim_agency da
-  -- on ds.feed_key = da.feed_key
 left join mart_transit_database.dim_gtfs_datasets gd
 on ds.base64_url = gd.base64_url
 where 
@@ -66,4 +61,4 @@ gdf.to_file("maps/geohashed_grouped_stops_7.geojson", driver="GeoJSON")
 out = gdf.copy()
 out["lon"] = out.geometry.x
 out["lat"] = out.geometry.y
-out.drop(columns="geometry").to_csv("maps/geohashed_grouped_stops_7_inside_ca_with_coords.csv", index=False)
+out.drop(columns="geometry").to_csv("maps/geohashed_grouped_stops_7_inside_ca.csv", index=False)

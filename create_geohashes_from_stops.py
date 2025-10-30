@@ -31,24 +31,18 @@ def streetview_web_link(lat, lon, heading=0, pitch=0, fov=90):
 sql = """
 SELECT
   ds.KEY,
-  ds._gtfs_key,
   ds.feed_key,
   ds.base64_url,
   gd.analysis_name,
-  -- da.agency_id,
-  -- da.agency_name,
   ds.stop_id,
   ds.tts_stop_name,
   stop_lat,
   stop_lon,
-  zone_id,
   stop_code,
   stop_name,
-  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 7) AS geohash_7
+  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 7) AS geohash_id
 FROM
   `mart_gtfs_schedule_latest.dim_stops_latest` ds
-  -- left join mart_gtfs.dim_agency da
-  -- on ds.feed_key = da.feed_key
 left join mart_transit_database.dim_gtfs_datasets gd
 on ds.base64_url = gd.base64_url
 where 
@@ -66,16 +60,16 @@ con = duckdb.connect()
 con.register("stops_df", df)
 sql = """
 SELECT
-  geohash_7,
+  geohash_id,
   COUNT(*) AS n_stops_in_geohash,
 FROM stops_df
-GROUP BY geohash_7
+GROUP BY geohash_id
 order by n_stops_in_geohash DESC
 """
 agg_df = con.execute(sql).fetchdf()
 
 # merge counts back onto df
-df = df.merge(agg_df, on="geohash_7", how="left")
+df = df.merge(agg_df, on="geohash_id", how="left")
 
 # save full stops with geohashes and counts
 df.to_csv("maps/full_latest_stops.csv", index=False)
