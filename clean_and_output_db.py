@@ -127,12 +127,12 @@ logging.info(f"Shape of valid_geo_df after scrubbing: {valid_geo_df.shape}")
 geometry = [Point(xy) for xy in zip(valid_geo_df['stop_lon'], valid_geo_df['stop_lat'])]
 gdf = gpd.GeoDataFrame(valid_geo_df, geometry=geometry)
 
-precision_choice = 9
-gdf['geohash'] = gdf.apply(lambda row: geohash2.encode(row['stop_lat'], row['stop_lon'], precision=precision_choice), axis=1)
+precision_choice = 7
+gdf['geohash_id'] = gdf.apply(lambda row: geohash2.encode(row['stop_lat'], row['stop_lon'], precision=precision_choice), axis=1)
 logging.info(f"Geohashes successfully generated and added to the GeoDataFrame.  Currently using precision of {precision_choice}.")
 
 # Count occurrences of each geohash
-geohash_counts = gdf['geohash'].value_counts()
+geohash_counts = gdf['geohash_id'].value_counts()
 
 # Filter geohashes with counts greater than or equal to 2
 geohashes_with_multiple_stops = geohash_counts[geohash_counts >= 2]
@@ -141,8 +141,14 @@ geohashes_with_multiple_stops = geohash_counts[geohash_counts >= 2]
 logging.info(f"{geohashes_with_multiple_stops}")
 for gh in geohashes_with_multiple_stops.index:
     logging.info(f"Geohash: {gh}")
-    filtered_rows = gdf[gdf['geohash'] == gh]
+    filtered_rows = gdf[gdf['geohash_id'] == gh]
     logging.info(filtered_rows[['agency', 'stop_id', 'name', 'stop_lat', 'stop_lon']])
 
-logging.info(f"Outputting geojson: stops_with_points.geojson")
-gdf.to_file("stops_with_points.geojson", driver='GeoJSON')
+logging.info(f"Outputting geojson: amenity_stops.geojson")
+gdf.to_file("maps/amenity_stops.geojson", driver='GeoJSON')
+gdf.to_file("maps/amenity_stops.gpkg", layer="stops", driver="GPKG")
+
+out_csv = "maps/amenity_stops.csv"
+# drop geometry and write full attributes
+gdf.drop(columns="geometry").to_csv(out_csv, index=False)
+logging.info(f"Wrote CSV: {out_csv}")
