@@ -24,7 +24,7 @@ SELECT
   zone_id,
   stop_code,
   stop_name,
-  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 8) AS geohash_8
+  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 7) AS geohash_7
 FROM
   `mart_gtfs_schedule_latest.dim_stops_latest` ds
   -- left join mart_gtfs.dim_agency da
@@ -36,7 +36,7 @@ gd._is_current=TRUE
 and
 stop_lat != 0.0  )
 SELECT
-  t1.geohash_8 AS geohash_id,
+  t1.geohash_7 AS geohash_id,
   ANY_VALUE(t1.stop_lat) AS gh_stop_lat,
   ANY_VALUE(t1.stop_lon) AS gh_stop_lon,
   STRING_AGG(DISTINCT t1.analysis_name, ', ' ORDER BY t1.analysis_name) AS unique_agency_names_string,
@@ -60,10 +60,10 @@ path = "California_State_Boundary.geojson"
 ca_gdf = gpd.read_file(path)
 gdf = gpd.clip(gdf, ca_gdf) # clip to CA boundary
 
-gdf.to_file("maps/geohashed_grouped_stops.gpkg", layer="stops", driver="GPKG")
-gdf.to_file("maps/geohashed_grouped_stops.geojson", driver="GeoJSON")
+gdf.to_file("maps/geohashed_grouped_stops_7.gpkg", layer="stops", driver="GPKG")
+gdf.to_file("maps/geohashed_grouped_stops_7.geojson", driver="GeoJSON")
 
 out = gdf.copy()
 out["lon"] = out.geometry.x
 out["lat"] = out.geometry.y
-out.drop(columns="geometry").to_csv("maps/geohashed_grouped_stops_inside_ca_with_coords.csv", index=False)
+out.drop(columns="geometry").to_csv("maps/geohashed_grouped_stops_7_inside_ca_with_coords.csv", index=False)

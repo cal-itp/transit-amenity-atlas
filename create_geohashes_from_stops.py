@@ -44,7 +44,7 @@ SELECT
   zone_id,
   stop_code,
   stop_name,
-  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 8) AS geohash_8
+  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 7) AS geohash_7
 FROM
   `mart_gtfs_schedule_latest.dim_stops_latest` ds
   -- left join mart_gtfs.dim_agency da
@@ -66,16 +66,16 @@ con = duckdb.connect()
 con.register("stops_df", df)
 sql = """
 SELECT
-  geohash_8,
+  geohash_7,
   COUNT(*) AS n_stops_in_geohash,
 FROM stops_df
-GROUP BY geohash_8
+GROUP BY geohash_7
 order by n_stops_in_geohash DESC
 """
 agg_df = con.execute(sql).fetchdf()
 
 # merge counts back onto df
-df = df.merge(agg_df, on="geohash_8", how="left")
+df = df.merge(agg_df, on="geohash_7", how="left")
 
 # save full stops with geohashes and counts
 df.to_csv("maps/full_latest_stops.csv", index=False)
@@ -89,12 +89,12 @@ ca_gdf = gpd.read_file(path)
 gdf = gpd.clip(gdf, ca_gdf) # clip to CA boundary
 
 
-gdf.to_file("maps/stops_w_geohashes.gpkg", layer="stops", driver="GPKG")
+gdf.to_file("maps/stops_w_geohashes_7.gpkg", layer="stops", driver="GPKG")
 # alternatives:
-gdf.to_file("maps/stops_w_geohashes.geojson", driver="GeoJSON")
+gdf.to_file("maps/stops_w_geohashes_7.geojson", driver="GeoJSON")
 # gdf.to_file("maps/stops_w_geohashes.shp")  # shapefile has name/field limits
 
 out = gdf.copy()
 out["lon"] = out.geometry.x
 out["lat"] = out.geometry.y
-out.drop(columns="geometry").to_csv("maps/stops_inside_ca_with_coords.csv", index=False)
+out.drop(columns="geometry").to_csv("maps/stops_inside_ca_with_coords_7.csv", index=False)
