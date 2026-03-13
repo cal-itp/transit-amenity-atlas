@@ -16,13 +16,13 @@ from shapely.geometry import Point
 
 # Configure logging
 logging.basicConfig(
-    filename='bus_stop_processing.log',
+    filename='outputs/bus_stop_processing.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     filemode='w'  # 'w' for write (overwrite), 'a' for append (default)
 )
 
-source_folder = 'semi_processed'
+source_folder = '../semi_processed'
 
 dataframes = {}
 
@@ -108,7 +108,7 @@ for column in ['shelter', 'bench', 'wheelchair_boarding', 'lit', 'bin', 'rt_sign
     else:
         logging.warning(f"Column '{column}' not found in combined dataframe.")
 
-combined_df.to_csv('combined_df.csv',index=False)
+combined_df.to_csv('../outputs/combined_df.csv',index=False)
 
 # Create a GeoDataFrame from the combined dataframe
 logging.info(f"Shape of combined_df before scrubbing: {combined_df.shape}")
@@ -145,10 +145,10 @@ for gh in geohashes_with_multiple_stops.index:
     logging.info(filtered_rows[['agency', 'stop_id', 'name', 'stop_lat', 'stop_lon']])
 
 logging.info(f"Outputting geojson: amenity_stops.geojson")
-gdf.to_file("maps/amenity_stops.geojson", driver='GeoJSON')
-gdf.to_file("maps/amenity_stops.gpkg", layer="stops", driver="GPKG")
+gdf.to_file("../outputs/amenity_stops.geojson", driver='GeoJSON')
+gdf.to_file("../outputs/amenity_stops.gpkg", layer="stops", driver="GPKG")
 
-out_csv = "maps/amenity_stops.csv"
+out_csv = "outputs/amenity_stops.csv"
 # drop geometry and write full attributes
 gdf.drop(columns="geometry").to_csv(out_csv, index=False)
 logging.info(f"Wrote CSV: {out_csv}")
