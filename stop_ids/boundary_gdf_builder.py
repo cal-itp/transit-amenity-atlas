@@ -3,7 +3,7 @@ import geopandas as gpd
 from shapely.geometry import box
 import pandas as pd
 
-df = pd.read_csv("../full_latest_stops.csv", low_memory=False)
+df = pd.read_csv("../data/full_latest_stops.csv", low_memory=False)
 
 for each_precision in [7,8,9]:
     geohashes = set()

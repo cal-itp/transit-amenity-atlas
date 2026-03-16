@@ -10,7 +10,10 @@ import duckdb
 import geopandas as gpd
 from google.cloud import bigquery
 import pandas as pd
+from datetime import date
 from urllib.parse import urlencode
+
+from clip_boundaries import clip_to_ca_boundary
 
 client = bigquery.Client(project="cal-itp-data-infra")
 
@@ -40,7 +43,9 @@ SELECT
   stop_lon,
   stop_code,
   stop_name,
-  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 7) AS geohash_id
+  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 7) AS geohash_id_7,
+  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 8) AS geohash_id_8,
+  ST_GEOHASH(ST_GEOGPOINT(stop_lon, stop_lat), 9) AS geohash_id_9
 FROM
   `mart_gtfs_schedule_latest.dim_stops_latest` ds
 left join mart_transit_database.dim_gtfs_datasets gd
@@ -60,35 +65,33 @@ con = duckdb.connect()
 con.register("stops_df", df)
 sql = """
 SELECT
-  geohash_id,
-  COUNT(*) AS n_stops_in_geohash,
+  geohash_id_7,
+  COUNT(*) AS n_stops_in_geohash_7,
 FROM stops_df
-GROUP BY geohash_id
-order by n_stops_in_geohash DESC
+GROUP BY geohash_id_7
+order by n_stops_in_geohash_7 DESC
 """
 agg_df = con.execute(sql).fetchdf()
 
 # merge counts back onto df
-df = df.merge(agg_df, on="geohash_id", how="left")
+df = df.merge(agg_df, on="geohash_id_7", how="left")
 
 # save full stops with geohashes and counts
-df.to_csv("maps/full_latest_stops.csv", index=False)
+df.to_csv(f"../data/full_latest_stops_{date.today().strftime('%m_%d_%y')}.csv", index=False)
 
 # build GeoDataFrame (WGS84)
 gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df['stop_lon'], df['stop_lat']), crs="EPSG:4326")
 
-#https://gis.data.ca.gov/datasets/CDEGIS::california-state-boundary/explore
-path = "California_State_Boundary.geojson"
-ca_gdf = gpd.read_file(path)
-gdf = gpd.clip(gdf, ca_gdf) # clip to CA boundary
+
+clip_to_ca_boundary(gdf).to_file("../data/stops_w_geohashes.fgb", engine="pyogrio")
 
 
-gdf.to_file("maps/stops_w_geohashes_7.gpkg", layer="stops", driver="GPKG")
+# gdf.to_file("maps/stops_w_geohashes_7.gpkg", layer="stops", driver="GPKG")
 # alternatives:
-gdf.to_file("maps/stops_w_geohashes_7.geojson", driver="GeoJSON")
+# gdf.to_file("maps/stops_w_geohashes_7.geojson", driver="GeoJSON")
 # gdf.to_file("maps/stops_w_geohashes.shp")  # shapefile has name/field limits
 
-out = gdf.copy()
-out["lon"] = out.geometry.x
-out["lat"] = out.geometry.y
-out.drop(columns="geometry").to_csv("maps/stops_inside_ca_with_coords_7.csv", index=False)
+# out = gdf.copy()
+# out["lon"] = out.geometry.x
+# out["lat"] = out.geometry.y
+# out.drop(columns="geometry").to_csv("maps/stops_inside_ca_with_coords_7.csv", index=False)
