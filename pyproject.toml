@@ -1,7 +1,7 @@
 [project]
 name = "bus-stop-processor"
 version = "0.2.0"
-description = "Processes bus stop amenity data."
+description = "Processes bus stop data."
 readme = "README.md"
 requires-python = ">=3.12"
 
@@ -24,6 +24,9 @@ dependencies = [
     "pyogrio>=0.12.1",
     "bs4>=0.0.2",
     "cloudscraper>=1.2.71",
+    "duckdb>=1.0.0",
+    "google-cloud-bigquery>=3.0.0",
+    "db-dtypes>=1.0.0",
 ]
 
 [project.optional-dependencies]
