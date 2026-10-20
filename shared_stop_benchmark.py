@@ -10,28 +10,43 @@ on equal terms.
 
 Standard library only; Python 3.8+.
 
-Inputs
-------
-1. Deduplicated stops CSV (``--dedup``)
-   Required columns: ``unique_id``, ``latitude``, ``longitude``.
-2. GTFS stops CSV (``--gtfs``)
-   Required columns: ``GTFS Schedule Name``, ``GTFS Schedule Stop ID``,
-   ``unique_id``, ``latitude``, ``longitude``. ``unique_id`` is the id of the
-   deduplicated stop the GTFS stop was assigned to by the algorithm.
-   Extra columns in either file are ignored.
+Input
+-----
+One CSV (``--input``) with one row per GTFS Schedule stop, containing:
+
+* the GTFS Schedule feed the stop came from
+* the GTFS Schedule stop ID
+* latitude and longitude
+* the ID of the deduplicated stop the algorithm assigned it to (``unique_id``)
+
+Extra columns are ignored. The actual column headers are mapped to those five
+fields by a JSON config file (``--config``, default: ``shared_stop_benchmark.config.json``
+next to this script; built-in defaults are used if that file does not exist):
+
+    {
+      "columns": {
+        "gtfs_schedule_name": "GTFS Schedule Name",
+        "gtfs_stop_id":       "GTFS Schedule Stop ID",
+        "latitude":           "latitude",
+        "longitude":          "longitude",
+        "unique_id":          "unique_id"
+      }
+    }
+
+Any field left out of the config keeps its default header.
 
 Usage
 -----
-    python shared_stop_benchmark.py --dedup dedup.csv --gtfs gtfs_stops.csv
-    python shared_stop_benchmark.py --dedup dedup.csv --gtfs gtfs_stops.csv \\
+    python shared_stop_benchmark.py --input stops.csv
+    python shared_stop_benchmark.py --input stops.csv --config my_columns.json \
         --label "geohash-7" --json results/geohash-7.json
 
 Exit status is 0 when nothing failed and 1 otherwise (skipped tests are not
-failures unless ``--fail-on-skipped`` is given).
+failures unless ``--fail-on-skipped`` is given), or 2 for a bad config.
 
 Test cases
 ----------
-* File format checks for both inputs (one test per rule).
+* File format checks for the input (one test per rule).
 * "Should match" fixtures: GTFS stops that must share a ``unique_id``.
   Includes the "Caltrans District Focus Stops" category (one per district).
 * "Should not match" fixtures: GTFS stops that must NOT share a ``unique_id``.
@@ -41,7 +56,7 @@ To add a fixture, append a ``same(...)`` call to ``SHOULD_MATCH_FIXTURES`` or a
 used in a fixture gets its own line in the report, so categories are the
 quality dimensions you compare algorithms on; invent new ones freely.
 
-A fixture whose stops are not present in the supplied GTFS file is reported as
+A fixture whose stops are not present in the supplied file is reported as
 *skipped* rather than passed or failed, so a run against a partial dataset is
 not silently graded on stops that were never there.
 """
@@ -50,6 +65,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import re
 import sys
 import unittest
@@ -131,24 +147,74 @@ SHOULD_NOT_MATCH_FIXTURES: List[Fixture] = [
 ]
 
 # --------------------------------------------------------------------------- #
-# Input schemas and file loading
+# Column mapping config and file loading
 # --------------------------------------------------------------------------- #
 
-DEDUP_LABEL = "Deduplicated stops"
-GTFS_LABEL = "GTFS stops"
+DEFAULT_CONFIG_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "shared_stop_benchmark.config.json"
+)
 
-DEDUP_COLUMNS = ["unique_id", "latitude", "longitude"]
-GTFS_COLUMNS = [
-    "GTFS Schedule Name",
-    "GTFS Schedule Stop ID",
-    "unique_id",
-    "latitude",
-    "longitude",
-]
-GTFS_NAME, GTFS_STOP_ID, GTFS_UID, GTFS_LAT, GTFS_LON = GTFS_COLUMNS
+# logical field -> default header in the input CSV
+DEFAULT_COLUMNS = OrderedDict([
+    ("gtfs_schedule_name", "GTFS Schedule Name"),
+    ("gtfs_stop_id", "GTFS Schedule Stop ID"),
+    ("latitude", "latitude"),
+    ("longitude", "longitude"),
+    ("unique_id", "unique_id"),
+])
 
 MAX_ROW_ERRORS_SHOWN = 5
 _DECIMAL_RE = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)$")
+
+
+class ConfigError(Exception):
+    pass
+
+
+@dataclass
+class Columns:
+    """The input CSV headers that hold each logical field."""
+    gtfs_schedule_name: str
+    gtfs_stop_id: str
+    latitude: str
+    longitude: str
+    unique_id: str
+
+    def all(self) -> List[str]:
+        return [getattr(self, f) for f in DEFAULT_COLUMNS]
+
+
+def load_columns(config_path: Optional[str]) -> Columns:
+    """Read the column mapping from a JSON config; unspecified fields keep defaults.
+
+    With no explicit path, the default config beside this script is used if it
+    exists, otherwise the built-in defaults.
+    """
+    mapping = dict(DEFAULT_COLUMNS)
+    path = config_path or (DEFAULT_CONFIG_PATH if os.path.exists(DEFAULT_CONFIG_PATH) else None)
+    if path:
+        try:
+            with open(path, encoding="utf-8") as handle:
+                config = json.load(handle)
+        except OSError as exc:
+            raise ConfigError(f"cannot read config {path}: {exc}")
+        except ValueError as exc:
+            raise ConfigError(f"config {path} is not valid JSON: {exc}")
+        overrides = config.get("columns", {}) if isinstance(config, dict) else None
+        if not isinstance(overrides, dict):
+            raise ConfigError(f'config {path} must be an object with an optional "columns" object')
+        unknown = sorted(set(overrides) - set(DEFAULT_COLUMNS))
+        if unknown:
+            raise ConfigError(
+                f"config {path} has unknown column field(s) {unknown}; valid fields: {list(DEFAULT_COLUMNS)}")
+        for field_name, header in overrides.items():
+            if not isinstance(header, str) or not header.strip():
+                raise ConfigError(f"config {path}: columns.{field_name} must be a non-empty string")
+            mapping[field_name] = header.strip()
+    headers = list(mapping.values())
+    if len(set(headers)) != len(headers):
+        raise ConfigError(f"each field must map to a different header, got: {mapping}")
+    return Columns(**mapping)
 
 
 @dataclass
@@ -203,27 +269,28 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 class Inputs:
-    """Both input files plus a lookup from GTFS stop -> assigned unique_ids."""
+    """The input file, its column mapping, and a lookup from GTFS stop -> assigned unique_ids."""
 
-    def __init__(self, dedup: FileData, gtfs: FileData):
-        self.dedup = dedup
-        self.gtfs = gtfs
+    def __init__(self, data: FileData, columns: Columns):
+        self.data = data
+        self.columns = columns
         self.ids: Dict[StopRef, Set[str]] = {}
         self.coords: Dict[StopRef, Tuple[float, float]] = {}
-        if self.gtfs_usable:
-            for row in gtfs.rows:
-                if any(is_blank(row.get(c)) for c in (GTFS_NAME, GTFS_STOP_ID, GTFS_UID)):
+        if self.usable:
+            c = columns
+            for row in data.rows:
+                if any(is_blank(row.get(h)) for h in (c.gtfs_schedule_name, c.gtfs_stop_id, c.unique_id)):
                     continue
-                ref = (row[GTFS_NAME].strip(), row[GTFS_STOP_ID].strip())
-                self.ids.setdefault(ref, set()).add(row[GTFS_UID].strip())
-                if not coordinate_error(row.get(GTFS_LAT), -90, 90) and not coordinate_error(
-                    row.get(GTFS_LON), -180, 180
+                ref = (row[c.gtfs_schedule_name].strip(), row[c.gtfs_stop_id].strip())
+                self.ids.setdefault(ref, set()).add(row[c.unique_id].strip())
+                if not coordinate_error(row.get(c.latitude), -90, 90) and not coordinate_error(
+                    row.get(c.longitude), -180, 180
                 ):
-                    self.coords[ref] = (float(row[GTFS_LAT]), float(row[GTFS_LON]))
+                    self.coords[ref] = (float(row[c.latitude]), float(row[c.longitude]))
 
     @property
-    def gtfs_usable(self) -> bool:
-        return self.gtfs.load_error is None and all(c in self.gtfs.header for c in GTFS_COLUMNS)
+    def usable(self) -> bool:
+        return self.data.load_error is None and all(h in self.data.header for h in self.columns.all())
 
     def spread_m(self, refs: List[StopRef]) -> Optional[float]:
         """Largest distance between any two of refs, if coordinates are known."""
@@ -345,16 +412,17 @@ def _lon(value: Optional[str]) -> Optional[str]:
     return coordinate_error(value, -180, 180)
 
 
-def format_tests(label: str, data: FileData, columns: List[str], non_blank: List[str]) -> List[BenchmarkTest]:
-    category = f"File format: {label}"
+def format_tests(inputs: Inputs) -> List[BenchmarkTest]:
+    category = "File format"
+    data, c = inputs.data, inputs.columns
     tests = [
         BenchmarkTest(category, "File is a readable, non-empty CSV", _readable_check(data)),
-        BenchmarkTest(category, f"Header has columns {columns}", _header_check(data, columns)),
+        BenchmarkTest(category, f"Header has columns {c.all()}", _header_check(data, c.all())),
     ]
-    for column in non_blank:
-        tests.append(BenchmarkTest(category, f"'{column}' is never blank", _column_check(data, column, _not_blank)))
-    tests.append(BenchmarkTest(category, "'latitude' is a decimal in [-90, 90] for every record", _column_check(data, "latitude", _lat)))
-    tests.append(BenchmarkTest(category, "'longitude' is a decimal in [-180, 180] for every record", _column_check(data, "longitude", _lon)))
+    for header in (c.gtfs_schedule_name, c.gtfs_stop_id, c.unique_id):
+        tests.append(BenchmarkTest(category, f"'{header}' is never blank", _column_check(data, header, _not_blank)))
+    tests.append(BenchmarkTest(category, f"'{c.latitude}' is a decimal in [-90, 90] for every record", _column_check(data, c.latitude, _lat)))
+    tests.append(BenchmarkTest(category, f"'{c.longitude}' is a decimal in [-180, 180] for every record", _column_check(data, c.longitude, _lon)))
     return tests
 
 
@@ -367,14 +435,14 @@ def _describe(inputs: Inputs, ref: StopRef) -> str:
 
 def _resolve(t: unittest.TestCase, inputs: Inputs, fixture: Fixture) -> List[StopRef]:
     """Skip unless the fixture is populated and every stop is in the GTFS file."""
-    if not inputs.gtfs_usable:
-        t.skipTest("GTFS stops file is not usable (see file format tests)")
+    if not inputs.usable:
+        t.skipTest("input file is not usable (see file format tests)")
     if len(fixture.stops) < 2:
         t.skipTest("fixture not populated yet (needs at least 2 stops)")
     refs = [(n.strip(), s.strip()) for n, s in fixture.stops]
     absent = [r for r in refs if r not in inputs.ids]
     if absent:
-        t.skipTest("stop(s) not in GTFS stops file: " + ", ".join(f"{n} / {s}" for n, s in absent))
+        t.skipTest("stop(s) not in input file: " + ", ".join(f"{n} / {s}" for n, s in absent))
     return refs
 
 
@@ -422,11 +490,7 @@ def fixture_tests(inputs: Inputs) -> List[BenchmarkTest]:
 
 
 def build_suite(inputs: Inputs) -> unittest.TestSuite:
-    tests: List[BenchmarkTest] = []
-    tests += format_tests(DEDUP_LABEL, inputs.dedup, DEDUP_COLUMNS, ["unique_id"])
-    tests += format_tests(GTFS_LABEL, inputs.gtfs, GTFS_COLUMNS, [GTFS_NAME, GTFS_STOP_ID, GTFS_UID])
-    tests += fixture_tests(inputs)
-    return unittest.TestSuite(tests)
+    return unittest.TestSuite(format_tests(inputs) + fixture_tests(inputs))
 
 
 # --------------------------------------------------------------------------- #
@@ -447,14 +511,14 @@ def summarise(outcomes: List[Outcome]):
     return totals, by_category
 
 
-def print_report(outcomes: List[Outcome], label: str, dedup_path: str, gtfs_path: str, verbose: bool) -> None:
+def print_report(outcomes: List[Outcome], label: str, input_path: str, columns: Columns, verbose: bool) -> None:
     totals, by_category = summarise(outcomes)
     total = len(outcomes)
     bar = "=" * 78
     print(bar)
     print(f"Shared stop benchmark: {label}")
-    print(f"  deduplicated stops: {dedup_path}")
-    print(f"  GTFS stops:         {gtfs_path}")
+    print(f"  input: {input_path}")
+    print("  columns: " + ", ".join(f"{k} = {getattr(columns, k)!r}" for k in DEFAULT_COLUMNS))
     print(bar)
     print(
         f"OVERALL  {total} tests | {totals['passed']} passed | {totals['failed']} failed | "
@@ -482,11 +546,12 @@ def print_report(outcomes: List[Outcome], label: str, dedup_path: str, gtfs_path
     print()
 
 
-def write_json(path: str, outcomes: List[Outcome], label: str, dedup_path: str, gtfs_path: str) -> None:
+def write_json(path: str, outcomes: List[Outcome], label: str, input_path: str, columns: Columns) -> None:
     totals, by_category = summarise(outcomes)
     payload = {
         "label": label,
-        "inputs": {"deduplicated_stops": dedup_path, "gtfs_stops": gtfs_path},
+        "input": input_path,
+        "columns": {k: getattr(columns, k) for k in DEFAULT_COLUMNS},
         "overall": {**totals, "total": len(outcomes)},
         "categories": by_category,
         "tests": [o.__dict__ for o in outcomes],
@@ -499,21 +564,30 @@ def write_json(path: str, outcomes: List[Outcome], label: str, dedup_path: str, 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="Benchmark a shared transit stop identification algorithm against test cases.")
-    parser.add_argument("--dedup", required=True, help="CSV of deduplicated stops (unique_id, latitude, longitude)")
-    parser.add_argument("--gtfs", required=True, help="CSV of GTFS stops with the unique_id each was assigned")
+    parser.add_argument("--input", required=True,
+                        help="CSV with one row per GTFS Schedule stop and the unique_id it was assigned")
+    parser.add_argument("--config", metavar="PATH",
+                        help="JSON file mapping input column headers (default: shared_stop_benchmark.config.json "
+                             "beside this script, if present)")
     parser.add_argument("--label", default="unnamed algorithm", help="name of the algorithm being tested, shown in the report")
     parser.add_argument("--json", metavar="PATH", help="also write machine-readable results here")
     parser.add_argument("--verbose", "-v", action="store_true", help="list skipped tests and why")
     parser.add_argument("--fail-on-skipped", action="store_true", help="exit non-zero if any test was skipped")
     args = parser.parse_args(argv)
 
-    inputs = Inputs(load_csv(args.dedup), load_csv(args.gtfs))
+    try:
+        columns = load_columns(args.config)
+    except ConfigError as exc:
+        print(f"config error: {exc}", file=sys.stderr)
+        return 2
+
+    inputs = Inputs(load_csv(args.input), columns)
     result = BenchmarkResult()
     build_suite(inputs).run(result)
 
-    print_report(result.outcomes, args.label, args.dedup, args.gtfs, args.verbose)
+    print_report(result.outcomes, args.label, args.input, columns, args.verbose)
     if args.json:
-        write_json(args.json, result.outcomes, args.label, args.dedup, args.gtfs)
+        write_json(args.json, result.outcomes, args.label, args.input, columns)
 
     totals, _ = summarise(result.outcomes)
     if totals["failed"] or (args.fail_on_skipped and totals["skipped"]):

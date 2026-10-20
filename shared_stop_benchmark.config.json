@@ -1,0 +1,9 @@
+{
+  "columns": {
+    "gtfs_schedule_name": "GTFS Schedule Name",
+    "gtfs_stop_id": "GTFS Schedule Stop ID",
+    "latitude": "latitude",
+    "longitude": "longitude",
+    "unique_id": "unique_id"
+  }
+}
